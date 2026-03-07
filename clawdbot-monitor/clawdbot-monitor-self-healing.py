@@ -81,41 +81,28 @@ def start_chrome_debugging() -> bool:
     log("INFO", "启动调试 Chrome...")
     
     try:
-        # 使用 chrome_launcher 配置的脚本启动（支持自动加载 Browser Relay）
-        chrome_launcher = CONFIG.get("chrome_launcher", "")
+        # 直接启动 Chrome 并加载扩展（更可靠）
+        chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
         profile_dir = r"C:\ChromeDebugProfile"
         extension_path = r"F:\Scripts\openclaw-browser-relay-extension"
         
         # 确保配置文件目录存在
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
         
-        # 直接使用配置中的路径（已经是完整路径）
-        if chrome_launcher and Path(chrome_launcher).exists():
-            # 使用 bat 脚本启动
-            log("INFO", f"使用启动器: {chrome_launcher}")
-            subprocess.Popen(
-                ["cmd.exe", "/c", chrome_launcher],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                shell=True
-            )
-        else:
-            # 直接启动 Chrome（添加扩展支持）
-            chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-            
-            subprocess.Popen(
-                [
-                    chrome_exe,
-                    "--remote-debugging-port=9222",
-                    f"--user-data-dir={profile_dir}",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    f"--load-extension={extension_path}"
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            log("INFO", "Chrome 启动命令已执行（带扩展）")
+        # 直接启动 Chrome + 扩展
+        subprocess.Popen(
+            [
+                chrome_exe,
+                "--remote-debugging-port=9222",
+                f"--user-data-dir={profile_dir}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                f"--load-extension={extension_path}"
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        log("INFO", "Chrome 启动命令已执行（带扩展）")
     except Exception as e:
         log("ERROR", f"启动调试 Chrome 失败: {e}")
         send_telegram(f"❌ 调试 Chrome (9222) 启动异常: {e}")
