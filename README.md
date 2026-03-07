@@ -131,3 +131,17 @@ curl http://127.0.0.1:9222/json
 ---
 
 **made with ❤️ for OpenClaw users**
+
+---
+
+## 🤝 交流 & 支持
+
+- 🐛 问题反馈：https://github.com/Garygaoxiang/openclaw-self-healing-monitor/issues
+- ⭐ 喜欢的话，点个 Star 吧！
+- 🔄 欢迎 Fork 和 PR
+
+---
+
+**如果这个项目帮到了你，欢迎分享给更多 OpenClaw 用户！**
+
+made with ❤️ for OpenClaw users
