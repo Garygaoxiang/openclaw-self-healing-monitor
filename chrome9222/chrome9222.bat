@@ -1,6 +1,6 @@
 @echo off
 REM ========================================
-REM Chrome 9222 调试启动脚本（支持 Browser Relay）
+REM Chrome 9222 调试启动脚本（自动加载 Browser Relay）
 REM ========================================
 
 REM 你的 Chrome 路径
@@ -9,7 +9,7 @@ set CHROME_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
 REM 调试 Profile 存放目录
 set CHROME_DEBUG_PROFILE=C:\ChromeDebugProfile
 
-REM Browser Relay 扩展路径（自动加载）
+REM Browser Relay 扩展路径（修改为你的实际路径）
 set EXTENSION_PATH=F:\Scripts\openclaw-browser-relay-extension
 
 echo [1/4] Closing Chrome...
@@ -26,20 +26,18 @@ if not exist "%CHROME_DEBUG_PROFILE%\Default" (
 
 echo [3/4] Checking Extension...
 if not exist "%EXTENSION_PATH%" (
-    echo [WARN] Extension not found at: %EXTENSION_PATH%
-    echo [WARN] Browser Relay will not be loaded!
+    echo [ERROR] Extension not found: %EXTENSION_PATH%
+    echo [ERROR] Please check the extension path!
+    pause
+    exit /b 1
 )
 
 echo [4/4] Starting Chrome 9222 with Relay...
-REM 关键：添加 --load-extension 自动加载扩展
-if exist "%EXTENSION_PATH%" (
-    start "" "%CHROME_PATH%" --remote-debugging-port=9222 --user-data-dir="%CHROME_DEBUG_PROFILE%" --no-first-run --no-default-browser-check --load-extension="%EXTENSION_PATH%"
-) else (
-    start "" "%CHROME_PATH%" --remote-debugging-port=9222 --user-data-dir="%CHROME_DEBUG_PROFILE%" --no-first-run --no-default-browser-check
-)
+REM 关键：--load-extension 自动加载扩展
+start "" "%CHROME_PATH%" --remote-debugging-port=9222 --user-data-dir="%CHROME_DEBUG_PROFILE%" --no-first-run --no-default-browser-check --load-extension="%EXTENSION_PATH%" --force-device-scale-factor=1
 
 timeout /t 3 /nobreak >nul
-echo [Done] Chrome 9222 launched!
+echo [Done] Chrome 9222 launched with Relay!
 
 REM 检查端口
 netstat -an | findstr "9222" | findstr "LISTENING" >nul
@@ -51,7 +49,6 @@ if %errorlevel%==0 (
 
 echo.
 echo ========================================
-echo Tips:
-echo - 确保已在扩展中配置 Gateway Token
-echo - 访问 chrome://extensions 可查看扩展状态
+echo 如果扩展未自动连接，请在浏览器中点击
+echo OpenClaw Browser Relay 扩展图标
 echo ========================================
