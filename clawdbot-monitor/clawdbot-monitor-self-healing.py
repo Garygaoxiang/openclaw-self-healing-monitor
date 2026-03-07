@@ -28,12 +28,12 @@ CONFIG = {
     "pid_file": Path.home() / ".clawdbot/monitor.pid",
     "proxy_host": "127.0.0.1",
     "proxy_port": 10808,
-    "telegram_chat_id": "7306660733",
-    "telegram_token": "PLACEHOLDER_TELEGRAM_TOKEN",
+    "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
+    "telegram_token": "YOUR_TELEGRAM_TOKEN",
     "chrome_debug_port": 9222,
     "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
-    "claude_api_key": "PLACEHOLDER_CLAUDE_KEY"
+    "claude_api_key": "YOUR_CLAUDE_KEY"
 }
 
 def log(level: str, message: str):
@@ -191,7 +191,7 @@ def call_claude_code_fix(error_info: str) -> bool:
     wsl_cmd = f'''
 export PATH=/home/clawuser/.npm-global/bin:$PATH
 export ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-export ANTHROPIC_AUTH_TOKEN=PLACEHOLDER_CLAUDE_KEY
+export ANTHROPIC_AUTH_TOKEN=YOUR_CLAUDE_KEY
 echo '{fix_prompt.replace("'", "'\\\\''")}' | /mnt/f/nodejs/npm/claude -p --max-turns 15 --dangerously-skip-permissions
 '''
     
@@ -245,7 +245,7 @@ echo.
 echo 粘贴完成后按任意键打开 Claude Code...
 pause > nul
 set ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-set ANTHROPIC_AUTH_TOKEN=PLACEHOLDER_CLAUDE_KEY
+set ANTHROPIC_AUTH_TOKEN=YOUR_CLAUDE_KEY
 doskey claude=claude --dangerously-skip-permissions $*
 cmd /k cd /d F:\\Scripts\\clawdbot-monitor
 '''

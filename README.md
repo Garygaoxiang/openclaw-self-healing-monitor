@@ -92,8 +92,8 @@ CONFIG = {
     "retry_delay": 3,                # 重试间隔（秒）
     "proxy_host": "127.0.0.1",       # 代理主机
     "proxy_port": 10808,             # 代理端口
-    "telegram_chat_id": "YOUR_CHAT_ID",      # 你的 Telegram ID
-    "telegram_token": "YOUR_BOT_TOKEN",       # Bot Token
+    "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",      # 你的 Telegram ID
+    "telegram_token": "YOUR_TELEGRAM_TOKEN",       # Bot Token
 }
 ```
 
