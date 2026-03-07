@@ -1,4 +1,4 @@
-# 🤖 OpenClaw 全自动监控脚本
+# 🤖 OpenClaw 全自动监控脚本+全自动浏览器控制
 
 > 让你的 OpenClaw 永远在线，永不宕机
 
