@@ -31,7 +31,7 @@ CONFIG = {
     "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
     "telegram_token": "YOUR_TELEGRAM_TOKEN",
     "chrome_debug_port": 9222,
-    "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
+    "chrome_launcher": r"PATH\\TO\\chrome9222\\chrome9222.bat",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
     "claude_api_key": "YOUR_CLAUDE_KEY"
 }
@@ -83,7 +83,7 @@ def start_chrome_debugging() -> bool:
     try:
         # 直接启动 Chrome（更可靠，避免 bat 脚本潜在问题）
         chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        profile_dir = r"C:\ChromeDebugProfile"
+        profile_dir = r"PATH\\TO\\ChromeDebugProfile"
         
         # 确保配置文件目录存在
         Path(profile_dir).mkdir(parents=True, exist_ok=True)

@@ -2,6 +2,26 @@
 
 > 让你的 OpenClaw 永远在线，永不宕机
 
+## ⚙️ 首次配置
+
+使用前请修改以下文件中的路径：
+
+### 1. clawdbot-monitor/clawdbot-monitor-self-healing.py
+```python
+CONFIG = {
+    "chrome_launcher": r"C:\\你的路径\\chrome9222\\chrome9222.bat",
+}
+```
+
+### 2. chrome9222/chrome9222.bat
+```bat
+set CHROME_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+set CHROME_DEBUG_PROFILE=C:\ChromeDebugProfile
+set CHROME_ORIGINAL_PROFILE=C:\Users\你的用户名\AppData\Local\Google\Chrome\User Data\Default
+```
+
+> 把所有 `PATH\TO\...` 替换为你实际的安装路径。
+
 ![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.3.2-blue)
 ![Platform-Windows | WSL](https://img.shields.io/badge/Platform-Windows%20%7C%20WSL-green)
 ![License-MIT](https://img.shields.io/badge/License-MIT-yellow)
