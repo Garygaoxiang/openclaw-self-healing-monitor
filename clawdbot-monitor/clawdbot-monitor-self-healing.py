@@ -89,14 +89,12 @@ def start_chrome_debugging() -> bool:
         # 确保配置文件目录存在
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
         
-        # 替换路径占位符
-        actual_launcher = chrome_launcher.replace(r"PATH\TO", r"F:\Scripts") if chrome_launcher else ""
-        
-        if actual_launcher and Path(actual_launcher).exists():
+        # 直接使用配置中的路径（已经是完整路径）
+        if chrome_launcher and Path(chrome_launcher).exists():
             # 使用 bat 脚本启动
-            log("INFO", f"使用启动器: {actual_launcher}")
+            log("INFO", f"使用启动器: {chrome_launcher}")
             subprocess.Popen(
-                ["cmd.exe", "/c", actual_launcher],
+                ["cmd.exe", "/c", chrome_launcher],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=True
