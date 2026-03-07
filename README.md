@@ -154,3 +154,117 @@ curl http://127.0.0.1:9222/json
 ---
 
 **made with ❤️ for OpenClaw users**
+
+---
+
+## 🌐 代理配置（可选）
+
+如果你的网络需要代理才能访问外网（如 Telegram、Jina API 等），需要配置代理。
+
+### 方式一：系统代理
+
+```python
+CONFIG = {
+    "proxy_host": "127.0.0.1",   # 代理地址
+    "proxy_port": 10808,          # 代理端口（Clash 默认 7890/10808）
+}
+```
+
+### 方式二：无需代理
+
+如果不需要代理，注释掉或留空：
+
+```python
+CONFIG = {
+    "proxy_host": "",
+    "proxy_port": 0,
+}
+```
+
+---
+
+## 🖥️ Windows + WSL 部署说明
+
+本脚本设计为 **Windows + WSL** 架构：
+
+### 架构图
+
+```
+┌─────────────────┐
+│   Windows       │
+│  ┌───────────┐  │
+│  │ Chrome 9222│  │  ← 调试端口
+│  │ Telegram Bot │  │  ← 消息推送
+│  │ 代理 (Clash) │  │  ← 网络代理
+│  └───────────┘  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│     WSL         │
+│  ┌───────────┐  │
+│  │ OpenClaw  │  │  ← Gateway
+│  │ 监控脚本   │  │  ← 健康监测
+│  └────────└───────────────────┘  │
+─┘
+```
+
+### WSL 访问 Windows 资源
+
+- Chrome 9222: `http://127.0.0.1:9222`
+- 代理: `http://127.0.0.1:10808` (或你的代理端口)
+
+### 常用代理端口参考
+
+| 软件 | 默认端口 |
+|------|----------|
+| Clash | 7890 / 10808 |
+| V2Ray | 10808 |
+| Shadowrocket | 1080 |
+| Surge | 8889 |
+
+---
+
+## 📱 Telegram Bot 设置
+
+### 1. 创建 Bot
+
+1. 打开 Telegram，搜索 @BotFather
+2. 发送 `/newbot`
+3. 按提示设置名称和用户名
+4. 获取 Token
+
+### 2. 获取 Chat ID
+
+1. 搜索 @userinfobot
+2. 发送任意消息
+3. 获取 ID
+
+### 3. 配置
+
+```python
+CONFIG = {
+    "telegram_token": "123456:ABC-DEF1234ghIkl-zyx57W2vT1EXAMPLE",
+    "telegram_chat_id": "123456789",
+}
+```
+
+---
+
+## 🔧 常见问题
+
+### WSL 无法访问 Chrome 9222
+
+```bash
+# 在 Windows 上确认 Chrome 9222 正在运行
+curl http://127.0.0.1:9222/json
+
+# 在 WSL 中测试
+curl http://$(hostname -I | awk '{print $1}' | cut -d. -f1-3).1:9222/json
+```
+
+### 代理无法连接
+
+- 确认代理软件正在运行
+- 确认端口号正确
+- 测试代理连通性：`curl -x http://127.0.0.1:10808 https://api.telegram.org`
