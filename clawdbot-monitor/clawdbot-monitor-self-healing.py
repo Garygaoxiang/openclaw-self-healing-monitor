@@ -30,8 +30,8 @@ CONFIG = {
     "proxy_port": 10808,
     "telegram_chat_id": "7306660733",
     "telegram_token": "8301308308:AAHkD1ar0wdHebaoum5AqgrO31nFDzpLowM",
-    "chrome_debug_port": 9222,
-    "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.lnk",
+    "chrome_debug_port": 9223,
+    "chrome_launcher": r"F:\Scripts\chrome9223\chrome9223.lnk",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
     "claude_api_key": "sk-cp-DDOK7A0jmYjYRVY82liprA6ALZycHzuc_5_UWioNCPEelQ9buUtk4TOGkHWh9tSqoaJMCP9q1jXFTF7XWHy6fEBgfSjEvuDEnl6o6rluMrUUERKJ7MM9k_U"
 }
@@ -73,7 +73,7 @@ def is_chrome_debugging_running() -> bool:
         return False
 
 def start_chrome_debugging() -> bool:
-    """启动 Chrome 9222 调试端口"""
+    """启动 Chrome 9223 调试端口"""
     if is_chrome_debugging_running():
         log("INFO", "调试 Chrome 已在运行")
         return True
@@ -106,7 +106,7 @@ def start_chrome_debugging() -> bool:
             subprocess.Popen(
                 [
                     chrome_exe,
-                    "--remote-debugging-port=9222",
+                    "--remote-debugging-port=9223",
                     f"--user-data-dir={profile_dir}",
                     "--no-first-run",
                     "--no-default-browser-check",
@@ -118,19 +118,19 @@ def start_chrome_debugging() -> bool:
             log("INFO", "Chrome 启动命令已执行（带扩展）")
     except Exception as e:
         log("ERROR", f"启动调试 Chrome 失败: {e}")
-        send_telegram(f"❌ 调试 Chrome (9222) 启动异常: {e}")
+        send_telegram(f"❌ 调试 Chrome (9223) 启动异常: {e}")
         return False
 
     # 等待 Chrome 就绪，最多等待 30 秒
     for i in range(30):
         time.sleep(1)
         if is_chrome_debugging_running():
-            log("INFO", f"调试 Chrome 9222 端口已就绪 (等待了 {i+1} 秒)")
-            send_telegram("✅ 调试 Chrome (9222) 已启动")
+            log("INFO", f"调试 Chrome 9223 端口已就绪 (等待了 {i+1} 秒)")
+            send_telegram("✅ 调试 Chrome (9223) 已启动")
             return True
 
-    log("ERROR", "调试 Chrome 启动超时，9222 端口未响应")
-    send_telegram("❌ 调试 Chrome (9222) 启动超时，请检查 Chrome 是否正常安装")
+    log("ERROR", "调试 Chrome 启动超时，9223 端口未响应")
+    send_telegram("❌ 调试 Chrome (9223) 启动超时，请检查 Chrome 是否正常安装")
 
 
 def is_gateway_running() -> bool:
@@ -432,8 +432,8 @@ def monitor():
                     log("INFO", "Gateway 恢复健康，连续失败计数重置")
                     consecutive_failures = 0
                 if not is_chrome_debugging_running():
-                    log("WARN", "检测到调试 Chrome (9222) 已关闭，尝试重启...")
-                    send_telegram("⚠️ Chrome 调试端口 9222 已关闭，正在重启...")
+                    log("WARN", "检测到调试 Chrome (9223) 已关闭，尝试重启...")
+                    send_telegram("⚠️ Chrome 调试端口 9223 已关闭，正在重启...")
                     start_chrome_debugging()
                 time.sleep(CONFIG["check_interval"])
             else:
