@@ -31,7 +31,7 @@ CONFIG = {
     "telegram_chat_id": "7306660733",
     "telegram_token": "8301308308:AAHkD1ar0wdHebaoum5AqgrO31nFDzpLowM",
     "chrome_debug_port": 9222,
-    "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
+    "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.lnk",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
     "claude_api_key": "sk-cp-DDOK7A0jmYjYRVY82liprA6ALZycHzuc_5_UWioNCPEelQ9buUtk4TOGkHWh9tSqoaJMCP9q1jXFTF7XWHy6fEBgfSjEvuDEnl6o6rluMrUUERKJ7MM9k_U"
 }
@@ -81,28 +81,41 @@ def start_chrome_debugging() -> bool:
     log("INFO", "启动调试 Chrome...")
     
     try:
-        # 直接启动 Chrome 并加载扩展（更可靠）
-        chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        # 使用 chrome_launcher 配置的启动方式
+        chrome_launcher = CONFIG.get("chrome_launcher", "")
         profile_dir = r"C:\ChromeDebugProfile"
         extension_path = r"F:\Scripts\openclaw-browser-relay-extension"
         
         # 确保配置文件目录存在
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
         
-        # 直接启动 Chrome + 扩展
-        subprocess.Popen(
-            [
-                chrome_exe,
-                "--remote-debugging-port=9222",
-                f"--user-data-dir={profile_dir}",
-                "--no-first-run",
-                "--no-default-browser-check",
-                f"--load-extension={extension_path}"
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        log("INFO", "Chrome 启动命令已执行（带扩展）")
+        if chrome_launcher and Path(chrome_launcher.replace(r"PATH\TO", r"F:\Scripts")).exists():
+            # 使用配置的启动器（lnk 或 bat）
+            actual_launcher = chrome_launcher.replace(r"PATH\TO", r"F:\Scripts")
+            log("INFO", f"使用启动器: {actual_launcher}")
+            subprocess.Popen(
+                ["cmd.exe", "/c", "start", "", actual_launcher],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=True
+            )
+        else:
+            # 直接启动 Chrome + 扩展
+            chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            
+            subprocess.Popen(
+                [
+                    chrome_exe,
+                    "--remote-debugging-port=9222",
+                    f"--user-data-dir={profile_dir}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    f"--load-extension={extension_path}"
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            log("INFO", "Chrome 启动命令已执行（带扩展）")
     except Exception as e:
         log("ERROR", f"启动调试 Chrome 失败: {e}")
         send_telegram(f"❌ 调试 Chrome (9222) 启动异常: {e}")
