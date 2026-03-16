@@ -34,13 +34,13 @@ CONFIG = {
     "proxy_host": "127.0.0.1",
     "proxy_port": 10808,
     "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
-    "telegram_token": "YOUR_TELEGRAM_TOKEN",
+    "telegram_token": "XXX_TELEGRAM_TOKEN",
     "chrome_debug_port": 9222,
     "chrome_cron_port": 9223,
     "chrome_extension": r"F:\Scripts\openclaw-browser-relay-extension",
     "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
-    "claude_api_key": "YOUR_CLAUDE_KEY"
+    "claude_api_key": "XXX_CLAUDE_KEY"
 }
 
 def log(level: str, message: str):
@@ -158,14 +158,7 @@ def start_chrome_debugging(port: int) -> bool:
 def is_gateway_running() -> bool:
     try:
         response = requests.get(f"http://localhost:{CONFIG['gateway_port']}/health", timeout=5)
-        if response.status_code != 200:
-            return False
-        # 新增：检查配置是否有效（配置错误时也视为不健康）
-        has_error = False
-        if has_error:
-            log("WARN", "Gateway 运行中但配置有错误，视为不健康")
-            return False
-        return True
+        return response.status_code == 200
     except Exception:
         return False
 
@@ -182,10 +175,17 @@ def check_config_errors() -> tuple:
     cmd = "export PATH=/home/clawuser/.npm-global/bin:$PATH && openclaw doctor 2>&1"
     returncode, stdout, stderr = run_wsl_command(cmd, 30)
     output = stdout + stderr
-    if "Config invalid" in output or "Unrecognized key" in output:
-        lines = output.split('\n')
-        error_lines = [line for line in lines if "Config invalid" in line or "Unrecognized key" in line or "Problem:" in line]
-        error_msg = '\n'.join(error_lines[:5])
+    # 覆盖 openclaw 各版本可能出现的错误关键词
+    error_keywords = [
+        "Config invalid", "Unrecognized key", "Problem:",
+        "ValidationError", "invalid configuration", "parse error",
+        "SyntaxError", "Unexpected token", "Cannot find", "config error",
+        "failed to load", "invalid value"
+    ]
+    error_lines = [line for line in output.split('\n')
+                   if any(kw.lower() in line.lower() for kw in error_keywords)]
+    if error_lines or returncode != 0:
+        error_msg = '\n'.join(error_lines[:5]) or f"doctor 退出码={returncode}"
         return True, error_msg, output[:5000]
     return False, "", output[:5000]
 
@@ -194,74 +194,126 @@ def run_doctor_fix() -> tuple:
     cmd = "export PATH=/home/clawuser/.npm-global/bin:$PATH && openclaw doctor --fix 2>&1"
     returncode, stdout, stderr = run_wsl_command(cmd, 60)
     output = stdout + stderr
-    if "Config invalid" not in output and returncode == 0:
+    # 修复后再跑一次 doctor 验证（而不是靠 --fix 的输出判断）
+    time.sleep(2)
+    has_error, _, _ = check_config_errors()
+    if not has_error and returncode == 0:
         log("INFO", "配置修复成功")
         return True, output
     else:
         log("ERROR", f"配置修复失败: {output[:500]}")
         return False, output
 
-def call_claude_code_fix(error_info: str) -> bool:
-    """使用 Claude Code Prompt 模式自动修复"""
-    log("INFO", "开始 Claude Code 自动修复...")
-    
-    # 收集错误上下文
-    _, error_context, _ = check_config_errors()
-    full_context = f"错误信息:\n{error_info}\n\n诊断:\n{error_context[:2000]}"
-    
-    # 构建修复 prompt
-    fix_prompt = f"""OpenClaw Gateway 配置出错，请帮我自动修复。
+def call_claude_api_fix(error_info: str) -> bool:
+    """直接通过 HTTP API 调用 Claude 分析并修复配置（不依赖 WSL claude CLI）"""
+    import re
+    log("INFO", "开始 Claude API 自动修复分析...")
 
-{full_context}
+    # 1. 收集诊断信息
+    _, error_context, doctor_output = check_config_errors()
 
-请执行以下步骤：
-1. 运行 `openclaw doctor` 查看具体错误
-2. 分析错误原因
-3. 运行 `openclaw doctor --fix` 尝试修复
-4. 如果 doctor --fix 失败，手动修复配置文件
-5. 验证修复: openclaw doctor
-6. 如果成功，重启 Gateway: openclaw gateway restart
+    # 2. 读取实际配置文件内容，方便 Claude 直接分析
+    config_content = ""
+    for config_path in [
+        "~/.config/openclaw/config.json",
+        "~/.openclaw/config.json",
+        "~/.config/openclaw/config.yaml",
+    ]:
+        _, stdout, _ = run_wsl_command(f"cat {config_path} 2>/dev/null", 10)
+        if stdout.strip():
+            config_content = f"# {config_path}\n{stdout[:4000]}"
+            break
 
-只修复配置错误，不要改动其他正常配置。"""
-    
-    # 在 WSL 中调用 Claude Code（使用环境变量）
-    wsl_cmd = f'''
-export PATH=/home/clawuser/.npm-global/bin:$PATH
-export ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-export ANTHROPIC_AUTH_TOKEN=sk-cp-DDOK7A0jmYjYRVY82liprA6ALZycHzuc_5_UWioNCPEelQ9buUtk4TOGkHWh9tSqoaJMCP9q1jXFTF7XWHy6fEBgfSjEvuDEnl6o6rluMrUUERKJ7MM9k_U
-echo '{fix_prompt.replace("'", "'\\\\''")}' | /mnt/f/nodejs/npm/claude -p --max-turns 15 --dangerously-skip-permissions
-'''
-    
+    prompt = f"""OpenClaw Gateway 无法启动，请分析错误并给出修复用的 bash 命令。
+
+## 错误信息
+{error_info}
+
+## openclaw doctor 输出
+{doctor_output[:3000]}
+
+## 当前配置文件
+{config_content or '（无法读取配置文件）'}
+
+请只输出可在 WSL bash 中执行的修复命令，格式为：
+COMMAND_1: <命令1>
+COMMAND_2: <命令2>
+...
+
+注意：PATH 已包含 /home/clawuser/.npm-global/bin。只修复配置错误，不要修改正常配置项。"""
+
     try:
-        result = subprocess.run(
-            ["wsl", "-e", "bash", "-c", wsl_cmd],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            cwd="F:/Scripts/clawdbot-monitor"
+        response = requests.post(
+            f"{CONFIG['claude_api_url']}/v1/messages",
+            headers={
+                "x-api-key": CONFIG["claude_api_key"],
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-5",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
         )
-        
-        output = (result.stdout or "") + (result.stderr or "")
-        log("INFO", f"Claude Code 输出: {output[:2000]}")
-        
-        # 验证
-        time.sleep(5)
-        has_error = False
-        
+
+        if response.status_code != 200:
+            log("ERROR", f"Claude API 错误: {response.status_code} {response.text[:500]}")
+            return fallback_interactive_fix(error_info)
+
+        fix_text = response.json()["content"][0]["text"]
+        log("INFO", f"Claude API 建议:\n{fix_text[:2000]}")
+        send_telegram(f"🤖 Claude API 建议修复:\n{fix_text[:500]}")
+
+        # 3. 解析命令：优先结构化格式，降级到代码块
+        commands = re.findall(r'COMMAND_\d+:\s*(.+)', fix_text)
+        if not commands:
+            code_blocks = re.findall(r'```(?:bash|sh)?\n(.*?)```', fix_text, re.DOTALL)
+            commands = [
+                line.strip()
+                for block in code_blocks
+                for line in block.split('\n')
+                if line.strip() and not line.strip().startswith('#')
+            ]
+
+        if not commands:
+            log("WARN", "Claude API 未返回可执行命令，回退到交互式修复")
+            return fallback_interactive_fix(error_info)
+
+        # 4. 执行命令
+        log("INFO", f"执行 {len(commands)} 条修复命令...")
+        for i, cmd in enumerate(commands[:10]):
+            log("INFO", f"[{i+1}/{len(commands)}] {cmd}")
+            full_cmd = f"export PATH=/home/clawuser/.npm-global/bin:$PATH && {cmd}"
+            rc, stdout, stderr = run_wsl_command(full_cmd, 60)
+            if stdout.strip():
+                log("INFO", f"  stdout: {stdout[:500]}")
+            if stderr.strip():
+                log("WARN", f"  stderr: {stderr[:500]}")
+
+        # 5. 真实验证修复结果
+        time.sleep(3)
+        has_error, remaining_error, _ = check_config_errors()
         if not has_error:
-            log("INFO", "Claude Code 修复成功!")
-            send_telegram("✅ Claude Code 修复成功!")
+            log("INFO", "Claude API 修复成功，配置验证通过!")
+            send_telegram("✅ Claude API 自动修复成功!")
             return True
         else:
-            log("ERROR", "Claude Code 修复后仍有问题")
-            
-    except subprocess.TimeoutExpired:
-        log("ERROR", "Claude Code 超时")
+            log("ERROR", f"修复后仍有配置错误: {remaining_error}")
+            return fallback_interactive_fix(error_info)
+
+    except requests.exceptions.Timeout:
+        log("ERROR", "Claude API 请求超时")
     except Exception as e:
-        log("ERROR", f"Claude Code 调用失败: {e}")
-    
-    # 回退到交互式
+        log("ERROR", f"Claude API 调用失败: {e}")
+
     return fallback_interactive_fix(error_info)
+
+
+# 保留旧名称作为别名，兼容 reconnect() 和 main() 中的调用
+def call_claude_code_fix(error_info: str) -> bool:
+    return call_claude_api_fix(error_info)
 
 def fallback_interactive_fix(error_info: str):
     """回退到交互式修复窗口"""
@@ -387,6 +439,13 @@ def start_gateway() -> bool:
         return False
 
 def reconnect() -> bool:
+    # 启动前先检查 config，避免带错误配置反复重试
+    has_error, error_msg, _ = check_config_errors()
+    if has_error:
+        log("ERROR", f"检测到配置错误，跳过重试直接自愈: {error_msg}")
+        send_telegram(f"⚠️ 配置错误，直接进入自愈流程: {error_msg[:200]}")
+        return _run_self_healing(f"配置错误:\n{error_msg}")
+
     for attempt in range(1, CONFIG["max_retries"] + 1):
         log("WARN", f"尝试重新连接 (第 {attempt}/{CONFIG['max_retries']} 次)...")
         if is_gateway_running():
@@ -395,39 +454,47 @@ def reconnect() -> bool:
         if start_gateway():
             log("INFO", "重新连接成功")
             return True
-            
-        has_error, error_msg, _ = check_config_errors()
-        if has_error:
-            log("ERROR", f"配置错误导致启动失败: {error_msg}")
-            break
-            
+
         if attempt < CONFIG["max_retries"]:
             log("INFO", f"等待 {CONFIG['retry_delay']} 秒后重试...")
             time.sleep(CONFIG["retry_delay"])
-    
-    log("ERROR", "重新连接失败")
+
+    # 重试耗尽后，再次检查 config（启动期间可能触发升级）
+    has_error, error_msg, _ = check_config_errors()
+    error_info = f"Gateway 连续 {CONFIG['max_retries']} 次启动失败"
+    if has_error:
+        error_info += f"\n配置错误: {error_msg}"
+
+    log("ERROR", "重新连接失败，进入自愈流程...")
+    return _run_self_healing(error_info)
+
+
+def _run_self_healing(error_info: str) -> bool:
+    """统一的自愈入口：doctor --fix → Claude API → 交互式"""
     log("WARN", "尝试自愈修复...")
-    
-    log("INFO", "运行 openclaw doctor --fix 修复配置...")
-    success, output = run_doctor_fix()
-    
+    send_telegram(f"🔧 开始自愈修复...\n{error_info[:300]}")
+
+    success, doctor_output = run_doctor_fix()
     if success:
         log("INFO", "doctor --fix 修复成功")
         send_telegram("✅ doctor --fix 修复成功")
+        cleanup_old_processes()
+        time.sleep(3)
+        return False  # 返回 False 让调用方触发重新启动
+
+    log("ERROR", "doctor --fix 修复失败，调用 Claude API 智能修复...")
+    send_telegram("🤖 doctor --fix 失败，正在调用 Claude API 智能修复...")
+    full_error = f"{error_info}\n\ndoctor --fix 输出:\n{doctor_output[:1000]}"
+
+    if call_claude_code_fix(full_error):
+        send_telegram("✅ Claude API 修复成功!")
+        cleanup_old_processes()
+        time.sleep(3)
+        return False  # 让调用方重新触发启动
     else:
-        log("ERROR", "doctor --fix 修复失败，调用 Claude Code...")
-        send_telegram("🔧 doctor --fix 失败，正在调用 Claude Code 智能修复...")
-        error_info = f"Gateway 连续 {CONFIG['max_retries']} 次启动失败\n\ndoctor --fix 输出:\n{output[:1000]}"
-        if call_claude_code_fix(error_info):
-            send_telegram("✅ Claude Code 修复成功!")
-        else:
-            logs = collect_logs()
-            send_telegram(f"❌ 所有修复尝试均失败，需要人工介入\n\n日志:\n{logs[:2000]}")
-            return False
-    
-    cleanup_old_processes()
-    time.sleep(3)
-    return False
+        logs = collect_logs()
+        send_telegram(f"❌ 所有修复尝试均失败，需要人工介入\n\n日志:\n{logs[:2000]}")
+        return False
 
 def monitor():
     consecutive_failures = 0
