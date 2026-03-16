@@ -1,0 +1,9 @@
+# 敏感文件
+__pycache__/
+*.pyc
+.env
+*.log
+
+# 配置文件（包含敏感信息）
+clawdbot-monitor-self-healing.py
+claude code script/
