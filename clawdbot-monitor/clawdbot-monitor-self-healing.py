@@ -34,13 +34,13 @@ CONFIG = {
     "proxy_host": "127.0.0.1",
     "proxy_port": 10808,
     "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
-    "telegram_token": "XXX_TELEGRAM_TOKEN",
+    "telegram_token": "YOUR_TELEGRAM_TOKEN",
     "chrome_debug_port": 9222,
     "chrome_cron_port": 9223,
     "chrome_extension": r"F:\Scripts\openclaw-browser-relay-extension",
     "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
-    "claude_api_key": "XXX_CLAUDE_KEY"
+    "claude_api_key": "YOUR_CLAUDE_KEY"
 }
 
 def log(level: str, message: str):
@@ -334,7 +334,7 @@ echo.
 echo 粘贴完成后按任意键打开 Claude Code...
 pause > nul
 set ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-set ANTHROPIC_AUTH_TOKEN=sk-cp-DDOK7A0jmYjYRVY82liprA6ALZycHzuc_5_UWioNCPEelQ9buUtk4TOGkHWh9tSqoaJMCP9q1jXFTF7XWHy6fEBgfSjEvuDEnl6o6rluMrUUERKJ7MM9k_U
+set ANTHROPIC_AUTH_TOKEN=XXX_CLAUDE_KEY
 doskey claude=claude --dangerously-skip-permissions $*
 cmd /k cd /d F:\\Scripts\\clawdbot-monitor
 '''

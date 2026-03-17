@@ -44,8 +44,8 @@ CONFIG = {
     "max_retries": 5,
     "proxy_host": "127.0.0.1",   # 你的代理地址
     "proxy_port": 10808,          # 你的代理端口
-    "telegram_token": "YOUR_BOT_TOKEN",
-    "telegram_chat_id": "YOUR_CHAT_ID",
+    "telegram_token": "YOUR_TELEGRAM_TOKEN",
+    "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
     "chrome_launcher": r"C:\\你的路径\\chrome9222\\chrome9222.bat",
 }
 ```
