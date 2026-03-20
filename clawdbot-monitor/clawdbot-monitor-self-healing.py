@@ -49,6 +49,14 @@ def log(level: str, message: str):
     CONFIG["log_file"].parent.mkdir(parents=True, exist_ok=True)
     with open(CONFIG["log_file"], 'a', encoding='utf-8') as f:
         f.write(log_line + "\n")
+    # 超过 1MB 时检查行数，超过 5000 行则截断保留最近 3000 行
+    try:
+        if CONFIG["log_file"].stat().st_size > 1_000_000:
+            lines = CONFIG["log_file"].read_text(encoding='utf-8', errors='replace').splitlines()
+            if len(lines) > 5000:
+                CONFIG["log_file"].write_text('\n'.join(lines[-3000:]) + '\n', encoding='utf-8')
+    except Exception:
+        pass
     print(log_line)
 
 def send_telegram(message: str):
@@ -173,7 +181,7 @@ def run_wsl_command(cmd: str, timeout: int = 30) -> tuple:
 
 def check_config_errors() -> tuple:
     cmd = "export PATH=/home/clawuser/.npm-global/bin:$PATH && openclaw doctor 2>&1"
-    returncode, stdout, stderr = run_wsl_command(cmd, 30)
+    returncode, stdout, stderr = run_wsl_command(cmd, 15)
     output = stdout + stderr
     # 覆盖 openclaw 各版本可能出现的错误关键词
     error_keywords = [
@@ -316,35 +324,45 @@ def call_claude_code_fix(error_info: str) -> bool:
     return call_claude_api_fix(error_info)
 
 def fallback_interactive_fix(error_info: str):
-    """回退到交互式修复窗口"""
-    log("WARN", "回退到交互式修复...")
-    send_telegram("🔧 doctor --fix 失败，请查看弹出的 Claude Code 窗口进行修复")
-    
-    cmd_window = f'''
-@echo off
-title OpenClaw 修复助手
+    """回退到交互式修复窗口 — 自动启动 Claude Code"""
+    log("WARN", "回退到交互式 Claude Code 修复...")
+    send_telegram("🔧 所有自动修复失败，正在启动 Claude Code 交互修复窗口...")
+
+    # 将错误信息写入独立文件，避免批处理转义问题
+    prompt_file = Path("F:/Scripts/clawdbot-monitor/fix_prompt.txt")
+    try:
+        prompt_file.write_text(
+            f"OpenClaw Gateway 无法启动，请帮我分析并修复。\n\n错误信息:\n{error_info}\n\n"
+            f"请通过 WSL (wsl -u clawuser) 执行必要的修复命令。\n"
+            f"PATH 包含 /home/clawuser/.npm-global/bin。",
+            encoding='utf-8'
+        )
+    except Exception as e:
+        log("ERROR", f"写入提示文件失败: {e}")
+
+    # 批处理：显示错误信息后自动启动 Claude Code（无需人工输入）
+    cmd_window = r'''@echo off
+title OpenClaw 自愈修复 - Claude Code
 echo ========================================
-echo   OpenClaw 配置修复助手
+echo   OpenClaw 配置修复 - Claude Code 自愈
 echo ========================================
 echo.
-echo 请复制以下错误信息，粘贴到 Claude Code 中:
+type "F:\Scripts\clawdbot-monitor\fix_prompt.txt"
 echo.
-echo {error_info[:1000].replace('"', '\\"').replace('\n', ' ')}
-echo.
-echo 粘贴完成后按任意键打开 Claude Code...
-pause > nul
+echo ========================================
+echo 正在启动 Claude Code 进行自动修复...
+echo ========================================
 set ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-set ANTHROPIC_AUTH_TOKEN=XXX_CLAUDE_KEY
-doskey claude=claude --dangerously-skip-permissions $*
-cmd /k cd /d F:\\Scripts\\clawdbot-monitor
+set ANTHROPIC_AUTH_TOKEN=YOUR_CLAUDE_KEY
+cd /d F:\Scripts\clawdbot-monitor
+claude --dangerously-skip-permissions
 '''
     try:
         batch_file = Path("F:/Scripts/clawdbot-monitor/fix_assist.bat")
-        with open(batch_file, 'w', encoding='utf-8') as f:
-            f.write(cmd_window)
+        batch_file.write_text(cmd_window, encoding='utf-8')
         subprocess.Popen(["cmd", "/c", str(batch_file)], creationflags=subprocess.CREATE_NEW_CONSOLE)
-        log("INFO", "已打开修复助手窗口")
-        return True
+        log("INFO", "已启动 Claude Code 修复窗口，等待人工确认修复结果...")
+        return False  # 返回 False：窗口打开不等于修复完成，让监控继续重试
     except Exception as e:
         log("ERROR", f"打开修复窗口失败: {e}")
         return False
@@ -366,7 +384,7 @@ def cleanup_old_processes():
         run_wsl_command(cmd, 10)
         subprocess.run(["wsl", "systemctl", "--user", "stop", "openclaw-gateway.service"], capture_output=True)
         time.sleep(2)
-        subprocess.run(["wsl", "pkill", "-9", "-f", "openclaw-gateway"], capture_output=True)
+        subprocess.run(["wsl", "pkill", "-9", "-f", "openclaw"], capture_output=True)
         subprocess.run(["wsl", "pkill", "-9", "-f", "clawdbot"], capture_output=True)
         log("INFO", "已清理旧进程")
     except Exception as e:
@@ -439,13 +457,6 @@ def start_gateway() -> bool:
         return False
 
 def reconnect() -> bool:
-    # 启动前先检查 config，避免带错误配置反复重试
-    has_error, error_msg, _ = check_config_errors()
-    if has_error:
-        log("ERROR", f"检测到配置错误，跳过重试直接自愈: {error_msg}")
-        send_telegram(f"⚠️ 配置错误，直接进入自愈流程: {error_msg[:200]}")
-        return _run_self_healing(f"配置错误:\n{error_msg}")
-
     for attempt in range(1, CONFIG["max_retries"] + 1):
         log("WARN", f"尝试重新连接 (第 {attempt}/{CONFIG['max_retries']} 次)...")
         if is_gateway_running():
