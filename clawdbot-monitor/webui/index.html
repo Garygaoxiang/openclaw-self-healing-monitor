@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clawdbot Gateway Monitor</title>
+    
+    <!-- Bootstrap 5 CSS (Mazer风格) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #f2f7ff;
+            --bg-card: #ffffff;
+            --bg-sidebar: #1351d8;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-light: #ffffff;
+            --border-color: #e9ecef;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0d6efd;
+        }
+
+        * {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 260px;
+            height: 100vh;
+            background: var(--bg-sidebar);
+            color: var(--text-light);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-brand {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #fff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-brand i {
+            font-size: 1.8rem;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-menu-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-menu-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .sidebar-menu-link:hover,
+        .sidebar-menu-link.active {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+
+        .sidebar-menu-link i {
+            font-size: 1.25rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .page-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Status Cards */
+        .status-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            height: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .status-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .status-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .status-card-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+
+        .status-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .status-card-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .status-card-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Status Indicators */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge-success {
+            background: rgba(25, 135, 84, 0.1);
+            color: var(--success-color);
+        }
+
+        .status-badge-warning {
+            background: rgba(255, 193, 7, 0.15);
+            color: #997404;
+        }
+
+        .status-badge-danger {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .status-badge-info {
+            background: rgba(13, 110, 253, 0.1);
+            color: var(--info-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot-success { background: var(--success-color); }
+        .status-dot-warning { background: var(--warning-color); }
+        .status-dot-danger { background: var(--danger-color); }
+        .status-dot-info { background: var(--info-color); }
+
+        /* Icon Colors */
+        .icon-success { background: rgba(25, 135, 84, 0.1); color: var(--success-color); }
+        .icon-warning { background: rgba(255, 193, 7, 0.15); color: #997404; }
+        .icon-danger { background: rgba(220, 53, 69, 0.1); color: var(--danger-color); }
+        .icon-info { background: rgba(13, 110, 253, 0.1); color: var(--info-color); }
+        .icon-purple { background: rgba(139, 92, 246, 0.1); color: #7c3aed; }
+
+        /* Progress Bar */
+        .progress-bar-mini {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border-color);
+        }
+
+        .progress-bar-mini .progress-bar {
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        /* Tables */
+        .table-modern {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .table-modern th {
+            background: var(--bg-primary);
+            padding: 0.75rem 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-modern td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .table-modern tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table-modern tbody tr:hover {
+            background: var(--bg-primary);
+        }
+
+        /* Log Viewer */
+        .log-viewer {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Geist Mono', 'Consolas', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            color: #d4d4d4;
+            padding: 0.125rem 0;
+        }
+
+        .log-line.info { color: #4fc1ff; }
+        .log-line.warn { color: #ffcc00; }
+        .log-line.error { color: #f48771; }
+        .log-timestamp { color: #6a9955; }
+        .log-level { color: #c586c0; }
+
+        /* Section Card */
+        .section-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .section-card-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .section-card-body {
+            padding: 1.5rem;
+        }
+
+        /* Button Styles */
+        .btn-primary-custom {
+            background: var(--bg-sidebar);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary-custom:hover {
+            background: #0f3ab8;
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline-custom {
+            background: transparent;
+            color: var(--bg-sidebar);
+            border: 1px solid var(--bg-sidebar);
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-outline-custom:hover {
+            background: var(--bg-sidebar);
+            color: #fff;
+        }
+
+        /* Last Updated */
+        .last-updated {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 991px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+
+        /* Grid Layout */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .two-col-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .two-col-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-refreshing {
+            animation: pulse 1s infinite;
+        }
+
+        /* Footer Stats */
+        .footer-stats {
+            margin-top: 2rem;
+            padding: 1rem 0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .footer-stat-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-right: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Task Countdown */
+        .task-countdown {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .task-countdown.soon {
+            color: var(--warning-color);
+            font-weight: 600;
+        }
+
+        /* Channel Item */
+        .channel-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-radius: 8px;
+            background: var(--bg-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .channel-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .channel-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .channel-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .channel-name {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .channel-status {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <a href="#" class="sidebar-brand">
+            <i class="bi bi-robot"></i>
+            <span>Clawdbot</span>
+        </a>
+        <ul class="sidebar-menu">
+            <li class="sidebar-menu-item">
+                <a href="#dashboard" class="sidebar-menu-link active">
+                    <i class="bi bi-grid-1x2"></i>
+                    <span>仪表盘</span>
+                </a>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="#logs" class="sidebar-menu-link">
+                    <i class="bi bi-terminal"></i>
+                    <span>实时日志</span>
+                </a>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="#settings" class="sidebar-menu-link">
+                    <i class="bi bi-gear"></i>
+                    <span>设置</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Clawdbot Gateway Monitor</h1>
+                <p class="page-subtitle">实时监控系统状态</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-custom" onclick="refreshAll()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                </button>
+                <span class="last-updated" id="lastUpdated">最后更新: --</span>
+            </div>
+        </header>
+
+        <!-- Status Cards Grid -->
+        <div class="status-grid" id="statusGrid">
+            <!-- Gateway Status -->
+            <div class="status-card" id="gatewayCard">
+                <div class="status-card-header">
+                    <h5 class="status-card-title">Gateway</h5>
+                    <div class="status-card-icon icon-info">
+                        <i class="bi bi-server"></i>
+                    </div>
+                </div>
+                <div class="status-card-value" id="gatewayStatus">--</div>
+                <div class="status-card-subtitle" id="gatewayPort">端口: 18789</div>
+            </div>
+
+            <!-- Network Status -->
+            <div class="status-card" id="networkCard">
+                <div class="status-card-header">
+                    <h5 class="status-card-title">网络状态</h5>
+                    <div class="status-card-icon icon-success">
+                        <i class="bi bi-wifi"></i>
+                    </div>
+                </div>
+                <div class="status-card-value" id="networkType">--</div>
+                <div class="status-card-subtitle" id="networkIp">IP: --</div>
+            </div>
+
+            <!-- Chrome Status -->
+            <div class="status-card" id="chromeCard">
+                <div class="status-card-header">
+                    <h5 class="status-card-title">Chrome调试</h5>
+                    <div class="status-card-icon icon-purple">
+                        <i class="bi bi-browser-chrome"></i>
+                    </div>
+                </div>
+                <div class="status-card-value" id="chromeStatus">--</div>
+                <div class="status-card-subtitle" id="chromePorts">端口: --</div>
+            </div>
+
+            <!-- API Quota Status -->
+            <div class="status-card" id="quotaCard">
+                <div class="status-card-header">
+                    <h5 class="status-card-title">API额度</h5>
+                    <div class="status-card-icon icon-warning">
+                        <i class="bi bi-currency-dollar"></i>
+                    </div>
+                </div>
+                <div class="status-card-value" id="quotaPercent">--</div>
+                <div class="status-card-subtitle" id="quotaRemaining">剩余: --</div>
+                <div class="progress-bar-mini mt-2">
+                    <div class="progress-bar" id="quotaProgress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Channels Section -->
+        <div class="section-card mb-4">
+            <div class="section-card-header">
+                <h5 class="section-card-title">
+                    <i class="bi bi-chat-dots me-2"></i>Channel 状态
+                </h5>
+                <small class="text-muted">TG: 代理 | Feishu: 直连</small>
+            </div>
+            <div class="section-card-body">
+                <div class="row" id="channelsContainer">
+                    <div class="col-md-6">
+                        <div class="channel-item">
+                            <div class="channel-info">
+                                <div class="channel-icon" style="background: rgba(0,136,255,0.1); color: #0088ff;">
+                                    <i class="bi bi-telegram"></i>
+                                </div>
+                                <div>
+                                    <div class="channel-name">Telegram <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">代理</span></div>
+                                    <div class="channel-status" id="telegramStatus">检测中...</div>
+                                </div>
+                            </div>
+                            <div id="telegramBadge"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="channel-item">
+                            <div class="channel-info">
+                                <div class="channel-icon" style="background: rgba(70,155,255,0.1); color: #469bff;">
+                                    <i class="bi bi-feather"></i>
+                                </div>
+                                <div>
+                                    <div class="channel-name">Feishu <span class="badge bg-info ms-1" style="font-size: 0.65rem;">直连</span></div>
+                                    <div class="channel-status" id="feishuStatus">检测中...</div>
+                                </div>
+                            </div>
+                            <div id="feishuBadge"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two Column Grid -->
+        <div class="two-col-grid">
+            <!-- Plugins & Skills -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h5 class="section-card-title">
+                        <i class="bi bi-puzzle me-2"></i>Plugins & Skills
+                    </h5>
+                    <span class="badge bg-secondary" id="pluginsCount">0</span>
+                </div>
+                <div class="section-card-body" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table-modern">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>类型</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pluginsTable">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cron Jobs -->
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h5 class="section-card-title">
+                        <i class="bi bi-clock me-2"></i>Cron 任务
+                    </h5>
+                    <span class="badge bg-secondary" id="cronCount">0</span>
+                </div>
+                <div class="section-card-body" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table-modern">
+                        <thead>
+                            <tr>
+                                <th>任务</th>
+                                <th>下次执行</th>
+                                <th>倒计时</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cronTable">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Viewer -->
+        <div class="section-card mt-4" id="logsSection">
+            <div class="section-card-header">
+                <h5 class="section-card-title">
+                    <i class="bi bi-terminal me-2"></i>实时日志
+                </h5>
+                <button class="btn btn-sm btn-outline-custom" onclick="refreshLogs()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="section-card-body">
+                <div class="log-viewer" id="logViewer">
+                    <div class="log-line">等待日志加载...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Stats -->
+        <div class="footer-stats">
+            <div class="footer-stat-item">
+                <i class="bi bi-clock"></i>
+                <span>刷新间隔: <strong id="refreshInterval">30</strong>秒</span>
+            </div>
+            <div class="footer-stat-item">
+                <i class="bi bi-activity"></i>
+                <span>系统运行时间: <strong id="uptime">--</strong></span>
+            </div>
+            <div class="footer-stat-item">
+                <i class="bi bi-calendar-check"></i>
+                <span>启动时间: <strong id="startTime">--</strong></span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ================== 配置 ==================
+        const API_BASE = '';
+        const REFRESH_INTERVAL = 30000; // 30秒
+        let refreshTimer = null;
+        let startTime = new Date();
+
+        // ================== 工具函数 ==================
+        function getStatusBadge(status, text) {
+            const statusMap = {
+                'running': { class: 'status-badge-success', dot: 'status-dot-success', text: '运行中' },
+                'stopped': { class: 'status-badge-danger', dot: 'status-dot-danger', text: '已停止' },
+                'ok': { class: 'status-badge-success', dot: 'status-dot-success', text: '正常' },
+                'error': { class: 'status-badge-danger', dot: 'status-dot-danger', text: '错误' },
+                'warning': { class: 'status-badge-warning', dot: 'status-dot-warning', text: '警告' },
+                'unknown': { class: 'status-badge-info', dot: 'status-dot-info', text: '未知' },
+                'not_configured': { class: 'status-badge-info', dot: 'status-dot-info', text: '未配置' }
+            };
+            
+            const config = statusMap[status] || statusMap['unknown'];
+            return `<span class="status-badge ${config.class}"><span class="status-dot ${config.dot}"></span>${text || config.text}</span>`;
+        }
+
+        function formatTimestamp(isoString) {
+            if (!isoString) return '--';
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('lastUpdated').textContent = 
+                `最后更新: ${new Date().toLocaleTimeString('zh-CN')}`;
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds) return '--';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}小时${minutes}分钟`;
+        }
+
+        // ================== API 调用 ==================
+        async function fetchAPI(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE}/api/${endpoint}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`API Error (${endpoint}):`, error);
+                return null;
+            }
+        }
+
+        // ================== 刷新函数 ==================
+        async function refreshAll() {
+            const data = await fetchAPI('status/all');
+            if (!data) return;
+
+            updateGatewayStatus(data.gateway);
+            updateNetworkStatus(data.network);
+            updateChromeStatus(data.chrome);
+            updateQuotaStatus(data.quota);
+            updateChannelsStatus(data.channels);
+            updatePluginsStatus(data.plugins);
+            updateCronStatus(data.cron);
+            updateLastUpdated();
+
+            // 更新运行时间
+            const uptimeSeconds = Math.floor((Date.now() - startTime.getTime()) / 1000);
+            document.getElementById('uptime').textContent = formatUptime(uptimeSeconds);
+            document.getElementById('startTime').textContent = 
+                startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        async function refreshLogs() {
+            const data = await fetchAPI('logs');
+            if (!data || !data.logs) return;
+
+            const logViewer = document.getElementById('logViewer');
+            logViewer.innerHTML = data.logs.map(line => {
+                let className = '';
+                if (line.includes('[ERROR]')) className = 'error';
+                else if (line.includes('[WARN]')) className = 'warn';
+                else if (line.includes('[INFO]')) className = 'info';
+                
+                // 解析时间戳
+                const timeMatch = line.match(/\[([\d:-]+ [\d:]+)\]/);
+                const timestamp = timeMatch ? `<span class="log-timestamp">${timeMatch[1]}</span> ` : '';
+                const levelMatch = line.match(/\[(ERROR|WARN|INFO|DEBUG)\]/);
+                const level = levelMatch ? `<span class="log-level">[${levelMatch[1]}]</span> ` : '';
+                
+                return `<div class="log-line ${className}">${timestamp}${level}${line.replace(/(\[[\d:-]+ [\d:]+\]|\[(ERROR|WARN|INFO|DEBUG)\])/g, '').trim()}</div>`;
+            }).join('');
+
+            // 滚动到底部
+            logViewer.scrollTop = logViewer.scrollHeight;
+        }
+
+        // ================== 状态更新函数 ==================
+        function updateGatewayStatus(data) {
+            const statusEl = document.getElementById('gatewayStatus');
+            const cardEl = document.getElementById('gatewayCard');
+            
+            if (data.running) {
+                statusEl.textContent = '运行中';
+                cardEl.querySelector('.status-card-icon').className = 'status-card-icon icon-success';
+                cardEl.querySelector('.status-card-icon').innerHTML = '<i class="bi bi-server"></i>';
+            } else {
+                statusEl.textContent = '已停止';
+                cardEl.querySelector('.status-card-icon').className = 'status-card-icon icon-danger';
+                cardEl.querySelector('.status-card-icon').innerHTML = '<i class="bi bi-x-circle"></i>';
+            }
+            
+            document.getElementById('gatewayPort').textContent = `端口: ${data.port || 18789}`;
+        }
+
+        function updateNetworkStatus(data) {
+            const statusEl = document.getElementById('networkType');
+            const ipEl = document.getElementById('networkIp');
+            const cardEl = document.getElementById('networkCard');
+            
+            let type = '未知';
+            let iconClass = 'icon-info';
+            
+            if (data.proxy && data.proxy.available) {
+                type = `Proxy (${data.proxy.host}:${data.proxy.port})`;
+                iconClass = 'icon-success';
+            } else if (data.direct && data.direct.available) {
+                type = '直连';
+                iconClass = 'icon-success';
+            } else {
+                type = '不可用';
+                iconClass = 'icon-danger';
+            }
+            
+            statusEl.textContent = type;
+            ipEl.textContent = `外网IP: ${data.ip?.external || '获取中...'}`;
+            cardEl.querySelector('.status-card-icon').className = `status-card-icon ${iconClass}`;
+        }
+
+        function updateChromeStatus(data) {
+            const statusEl = document.getElementById('chromeStatus');
+            const portsEl = document.getElementById('chromePorts');
+            const cardEl = document.getElementById('chromeCard');
+            
+            const instances = data.instances || {};
+            const runningPorts = Object.values(instances).filter(p => p.running).length;
+            const totalPorts = Object.keys(instances).length;
+            
+            statusEl.textContent = `${runningPorts}/${totalPorts} 运行中`;
+            portsEl.textContent = Object.entries(instances).map(([port, info]) => 
+                `${port}: ${info.running ? '✅' : '❌'}`
+            ).join(' | ');
+            
+            if (runningPorts === totalPorts && totalPorts > 0) {
+                cardEl.querySelector('.status-card-icon').className = 'status-card-icon icon-success';
+            } else if (runningPorts > 0) {
+                cardEl.querySelector('.status-card-icon').className = 'status-card-icon icon-warning';
+            } else {
+                cardEl.querySelector('.status-card-icon').className = 'status-card-icon icon-danger';
+            }
+        }
+
+        function updateQuotaStatus(data) {
+            const percentEl = document.getElementById('quotaPercent');
+            const remainingEl = document.getElementById('quotaRemaining');
+            const progressEl = document.getElementById('quotaProgress');
+            const cardEl = document.getElementById('quotaCard');
+            
+            if (data.minimax.status === 'not_configured') {
+                percentEl.textContent = '未配置';
+                remainingEl.textContent = 'API Key未设置';
+                progressEl.style.width = '0%';
+                progressEl.className = 'progress-bar';
+                return;
+            }
+            
+            if (data.minimax.status === 'ok') {
+                const percent = data.minimax.percent || 0;
+                const remaining = data.minimax.remaining;
+                const total = data.minimax.total;
+                
+                percentEl.textContent = `${percent}%`;
+                remainingEl.textContent = `剩余: ${remaining?.toLocaleString() || '--'} / ${total?.toLocaleString() || '--'}`;
+                progressEl.style.width = `${percent}%`;
+                
+                if (percent > 50) {
+                    progressEl.className = 'progress-bar bg-success';
+                } else if (percent > 20) {
+                    progressEl.className = 'progress-bar bg-warning';
+                } else {
+                    progressEl.className = 'progress-bar bg-danger';
+                }
+            } else {
+                percentEl.textContent = '错误';
+                remainingEl.textContent = data.minimax.status;
+            }
+        }
+
+        function updateChannelsStatus(data) {
+            // Telegram
+            const tgStatus = document.getElementById('telegramStatus');
+            const tgBadge = document.getElementById('telegramBadge');
+            
+            if (data.telegram.status === 'running') {
+                tgStatus.textContent = data.telegram.bot_name || '已连接';
+                tgBadge.innerHTML = getStatusBadge('running', '运行中');
+            } else if (data.telegram.status === 'not_configured') {
+                tgStatus.textContent = 'Token未配置';
+                tgBadge.innerHTML = getStatusBadge('not_configured', '未配置');
+            } else {
+                tgStatus.textContent = data.telegram.status || '未知';
+                tgBadge.innerHTML = getStatusBadge('error', '错误');
+            }
+            
+            // Feishu
+            const fsStatus = document.getElementById('feishuStatus');
+            const fsBadge = document.getElementById('feishuBadge');
+            
+            if (data.feishu.status === 'running') {
+                fsStatus.textContent = '已连接';
+                fsBadge.innerHTML = getStatusBadge('running', '运行中');
+            } else if (data.feishu.configured === false) {
+                fsStatus.textContent = '未配置';
+                fsBadge.innerHTML = getStatusBadge('not_configured', '未配置');
+            } else {
+                fsStatus.textContent = data.feishu.status || '未知';
+                fsBadge.innerHTML = getStatusBadge('error', '错误');
+            }
+        }
+
+        function updatePluginsStatus(data) {
+            const tbody = document.getElementById('pluginsTable');
+            const countBadge = document.getElementById('pluginsCount');
+            
+            const plugins = data.plugins || [];
+            countBadge.textContent = plugins.length;
+            
+            if (plugins.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">暂无插件</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = plugins.map(plugin => `
+                <tr>
+                    <td><strong>${plugin.name}</strong></td>
+                    <td><span class="badge bg-secondary">${plugin.type || 'plugin'}</span></td>
+                    <td>${getStatusBadge(plugin.status || 'running', plugin.status === 'running' ? '正常' : '异常')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateCronStatus(data) {
+            const tbody = document.getElementById('cronTable');
+            const countBadge = document.getElementById('cronCount');
+            
+            const tasks = data.tasks || [];
+            countBadge.textContent = tasks.length;
+            
+            if (tasks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">暂无定时任务</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = tasks.map(task => {
+                const isSoon = task.next_run_timestamp && 
+                    (task.next_run_timestamp * 1000 - Date.now()) < 300000; // 5分钟内
+                
+                return `
+                    <tr>
+                        <td>
+                            <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${task.command}">
+                                ${task.command}
+                            </div>
+                        </td>
+                        <td>${task.next_run ? formatTimestamp(task.next_run) : '--'}</td>
+                        <td><span class="task-countdown ${isSoon ? 'soon' : ''}">${task.next_run_relative}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ================== 初始化 ==================
+        function init() {
+            // 首次加载
+            refreshAll();
+            refreshLogs();
+            
+            // 定时刷新
+            refreshTimer = setInterval(refreshAll, REFRESH_INTERVAL);
+            setInterval(refreshLogs, 10000); // 日志每10秒刷新
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+
+        // 页面离开时清理
+        window.addEventListener('beforeunload', () => {
+            if (refreshTimer) clearInterval(refreshTimer);
+        });
+    </script>
+</body>
+</html>

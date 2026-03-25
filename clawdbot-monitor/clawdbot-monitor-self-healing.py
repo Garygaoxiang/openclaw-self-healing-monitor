@@ -13,6 +13,15 @@ import requests
 from pathlib import Path
 from datetime import datetime
 
+def _is_wsl() -> bool:
+    try:
+        with open("/proc/version") as f:
+            return "microsoft" in f.read().lower()
+    except Exception:
+        return False
+
+IN_WSL = _is_wsl()
+
 # 修复 Windows 控制台编码问题
 if sys.platform == "win32":
     import io
@@ -33,14 +42,14 @@ CONFIG = {
     "pid_file": Path.home() / ".clawdbot/monitor.pid",
     "proxy_host": "127.0.0.1",
     "proxy_port": 10808,
-    "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
-    "telegram_token": "YOUR_TELEGRAM_TOKEN",
-    "chrome_debug_port": 9222,
-    "chrome_cron_port": 9223,
+    "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID", "YOUR_TELEGRAM_CHAT_ID"),
+    "telegram_token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+    "chrome_debug_port": 9315,
+    "chrome_cron_port": 9316,
     "chrome_extension": r"F:\Scripts\openclaw-browser-relay-extension",
-    "chrome_launcher": r"F:\Scripts\chrome9222\chrome9222.bat",
+    "chrome_launcher": r"F:\Scripts\chrome9315\chrome9315.bat",
     "claude_api_url": "https://api.minimaxi.com/anthropic",
-    "claude_api_key": "YOUR_CLAUDE_KEY"
+    "claude_api_key": "XXX_CLAUDE_KEY"
 }
 
 def log(level: str, message: str):
@@ -49,9 +58,10 @@ def log(level: str, message: str):
     CONFIG["log_file"].parent.mkdir(parents=True, exist_ok=True)
     with open(CONFIG["log_file"], 'a', encoding='utf-8') as f:
         f.write(log_line + "\n")
-    # 超过 1MB 时检查行数，超过 5000 行则截断保留最近 3000 行
+    # 每 500 次写入检查一次，超过 5000 行则截断保留最近 3000 行
     try:
-        if CONFIG["log_file"].stat().st_size > 1_000_000:
+        size = CONFIG["log_file"].stat().st_size
+        if size > 1_000_000:  # 超过 1MB 才检查行数，减少 IO
             lines = CONFIG["log_file"].read_text(encoding='utf-8', errors='replace').splitlines()
             if len(lines) > 5000:
                 CONFIG["log_file"].write_text('\n'.join(lines[-3000:]) + '\n', encoding='utf-8')
@@ -60,25 +70,23 @@ def log(level: str, message: str):
     print(log_line)
 
 def send_telegram(message: str):
-    try:
-        url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/sendMessage"
-        data = {
-            "chat_id": CONFIG["telegram_chat_id"],
-            "text": message
-        }
-        proxies = {
-            "http": f"http://{CONFIG['proxy_host']}:{CONFIG['proxy_port']}",
-            "https": f"http://{CONFIG['proxy_host']}:{CONFIG['proxy_port']}"
-        }
-        requests.post(url, json=data, proxies=proxies, timeout=10)
-    except Exception as e:
-        log("WARN", f"Telegram 通知失败: {e}")
-    try:
-        url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/sendMessage"
-        data = {"chat_id": CONFIG["telegram_chat_id"], "text": message}
-        requests.post(url, data=data, timeout=10)
-    except Exception as e:
-        log("WARN", f"Telegram 通知失败: {e}")
+    token = CONFIG["telegram_token"]
+    chat_id = CONFIG["telegram_chat_id"]
+    if not token or token in ("YOUR_TELEGRAM_TOKEN", "XXX_TELEGRAM_TOKEN"):
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message}
+    proxies = {
+        "http": f"http://{CONFIG['proxy_host']}:{CONFIG['proxy_port']}",
+        "https": f"http://{CONFIG['proxy_host']}:{CONFIG['proxy_port']}"
+    }
+    for kwargs in [{"proxies": proxies}, {}]:
+        try:
+            requests.post(url, json=data, timeout=10, **kwargs)
+            return
+        except Exception as e:
+            last_err = e
+    log("WARN", f"Telegram 通知失败: {last_err}")
 
 def is_chrome_debugging_running(port: int) -> bool:
     try:
@@ -87,26 +95,57 @@ def is_chrome_debugging_running(port: int) -> bool:
     except Exception:
         return False
 
-def start_chrome_debugging(port: int) -> bool:
+def is_chrome_process_running(port: int) -> bool:
+    """检查是否已有 Chrome 进程占用该调试端口（即使 HTTP 未就绪）"""
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "where", "name='chrome.exe'", "get", "commandline", "/format:list"],
+            capture_output=True, text=True, timeout=5, encoding="utf-8", errors="replace"
+        )
+        return f"--remote-debugging-port={port}" in result.stdout
+    except Exception:
+        return False
+
+def kill_chrome_process(port: int):
+    """强制结束占用该调试端口的 Chrome 进程"""
+    log("INFO", f"正在终止端口 {port} 的旧 Chrome 进程...")
+    try:
+        subprocess.run(
+            ["powershell", "-Command",
+             f"Get-WmiObject Win32_Process -Filter \\\"name='chrome.exe'\\\" | "
+             f"Where-Object {{ $_.CommandLine -like '*--remote-debugging-port={port}*' }} | "
+             f"ForEach-Object {{ $_.Terminate() }}"],
+            capture_output=True, timeout=10
+        )
+        time.sleep(2)
+    except Exception as e:
+        log("WARN", f"终止 Chrome 进程失败: {e}")
+
+def start_chrome_debugging(port: int, notify: bool = True) -> bool:
     """启动 Chrome 调试端口"""
     if is_chrome_debugging_running(port):
         log("INFO", f"调试 Chrome ({port}) 已在运行")
         return True
+
+    # 进程存在但 HTTP 不通 → 先杀掉旧进程再重启，避免重复开窗口
+    if is_chrome_process_running(port):
+        log("WARN", f"Chrome ({port}) 进程已存在但 HTTP 未响应，先终止旧进程再重启")
+        kill_chrome_process(port)
 
     log("INFO", f"启动调试 Chrome ({port})...")
     
     try:
         # 直接启动 Chrome（更可靠，避免 bat 脚本潜在问题）
         chrome_exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        # 针对 9222 保留原来已经配置好书签和扩展的状态目录
-        if port == 9222:
+        # 针对 9315 保留原来已经配置好书签和扩展的状态目录
+        if port == 9315:
             profile_dir = r"C:\ChromeDebugProfile"
         else:
             profile_dir = rf"C:\ChromeDebugProfile{port}"
-        
-        # 针对新端口，如果还没有配置文件，从 9222 的主配置目录中完整拷贝（包含所有扩展和书签）
+
+        # 针对新端口，如果还没有配置文件，从 9315 的主配置目录中完整拷贝（包含所有扩展和书签）
         source_profile = r"C:\ChromeDebugProfile"
-        if port != 9222 and os.path.exists(source_profile) and not os.path.exists(profile_dir):
+        if port != 9315 and os.path.exists(source_profile) and not os.path.exists(profile_dir):
             log("INFO", f"首次启动 Chrome ({port})，正在从 {source_profile} 完整复制配置...")
             try:
                 # 使用 xcopy 完整复制该目录
@@ -121,13 +160,29 @@ def start_chrome_debugging(port: int) -> bool:
         # 确保配置文件目录存在
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
 
+        # 重置 exit_type，避免 Chrome 启动时弹出"恢复上次页面"对话框
+        # 该对话框会阻塞 remote debugging HTTP server 的启动，导致 /json/version 永远不响应
+        prefs_path = Path(profile_dir) / "Default" / "Preferences"
+        if prefs_path.exists():
+            try:
+                import json as _json
+                prefs = _json.loads(prefs_path.read_text(encoding='utf-8', errors='replace'))
+                if prefs.get("profile", {}).get("exit_type") == "Crashed":
+                    prefs.setdefault("profile", {})["exit_type"] = "Normal"
+                    prefs_path.write_text(_json.dumps(prefs), encoding='utf-8')
+                    log("INFO", f"已重置 Chrome ({port}) Preferences exit_type 为 Normal")
+            except Exception as e:
+                log("WARN", f"重置 Preferences 失败: {e}")
+
         cmd = [
             chrome_exe,
             f"--remote-debugging-port={port}",
             f"--user-data-dir={profile_dir}",
             "--no-first-run",
             "--no-default-browser-check",
-            "--force-device-scale-factor=1"
+            "--force-device-scale-factor=1",
+            "--disable-session-crashed-bubble",
+            "--hide-crash-restore-bubble",
         ]
         
         # 自动加载 Browser Relay 扩展
@@ -147,7 +202,8 @@ def start_chrome_debugging(port: int) -> bool:
         log("INFO", f"Chrome ({port}) 启动命令已执行: {cmd}")
     except Exception as e:
         log("ERROR", f"启动调试 Chrome ({port}) 失败: {e}")
-        send_telegram(f"❌ 调试 Chrome ({port}) 启动异常: {e}")
+        if notify:
+            send_telegram(f"❌ 调试 Chrome ({port}) 启动异常: {e}")
         return False
 
     # 等待 Chrome 就绪，最多等待 30 秒
@@ -155,24 +211,48 @@ def start_chrome_debugging(port: int) -> bool:
         time.sleep(1)
         if is_chrome_debugging_running(port):
             log("INFO", f"调试 Chrome {port} 端口已就绪 (等待了 {i+1} 秒)")
-            send_telegram(f"✅ 调试 Chrome ({port}) 已启动，并已加载 Relay 扩展")
+            if notify:
+                send_telegram(f"✅ 调试 Chrome ({port}) 已启动，并已加载 Relay 扩展")
             return True
 
     log("ERROR", f"调试 Chrome 启动超时，{port} 端口未响应")
-    send_telegram(f"❌ 调试 Chrome ({port}) 启动超时，请检查 Chrome 是否正常安装")
+    if notify:
+        send_telegram(f"❌ 调试 Chrome ({port}) 启动超时，请检查 Chrome 是否正常安装")
     return False
 
 
 def is_gateway_running() -> bool:
+    """通过 WSL 内部检查 Gateway 健康状态（避免 Windows->WSL2 localhost 连接问题）"""
     try:
-        response = requests.get(f"http://localhost:{CONFIG['gateway_port']}/health", timeout=5)
-        return response.status_code == 200
+        rc, stdout, _ = run_wsl_command(
+            f"curl -s --max-time 15 http://127.0.0.1:{CONFIG['gateway_port']}/health",
+            timeout=25
+        )
+        if rc == 0 and '"ok":true' in stdout:
+            return True
+        # HTTP 超时（exit 28）或连接中断 — 检查进程是否仍存活且端口在监听
+        # 若存活则视为"启动中"，不触发重启；只有进程消失或端口未开才判为挂掉
+        if rc in (28, -1):
+            gw_port = CONFIG["gateway_port"]
+            proc_rc, proc_out, _ = run_wsl_command(
+                f"pgrep -f openclaw-gateway >/dev/null 2>&1 && "
+                f"ss -tlnp 2>/dev/null | grep -q ':{gw_port}' && echo alive",
+                timeout=10
+            )
+            if proc_rc == 0 and "alive" in proc_out:
+                log("INFO", "Gateway HTTP 响应慢（事件循环忙），进程存活，跳过重启")
+                return True
+        return False
     except Exception:
         return False
 
 def run_wsl_command(cmd: str, timeout: int = 30) -> tuple:
     try:
-        result = subprocess.run(["wsl", "-e", "bash", "-c", cmd], capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
+        if IN_WSL:
+            args = ["bash", "-c", cmd]
+        else:
+            args = ["wsl", "-u", "clawuser", "-e", "bash", "-c", cmd]
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
         return result.returncode, result.stdout or "", result.stderr or ""
     except subprocess.TimeoutExpired:
         return -1, "", "Command timeout"
@@ -183,7 +263,10 @@ def check_config_errors() -> tuple:
     cmd = "export PATH=/home/clawuser/.npm-global/bin:$PATH && openclaw doctor 2>&1"
     returncode, stdout, stderr = run_wsl_command(cmd, 15)
     output = stdout + stderr
-    # 覆盖 openclaw 各版本可能出现的错误关键词
+    if returncode == -1:
+        # doctor 超时或无法执行，不视为配置错误，直接让调用方尝试启动
+        log("WARN", "openclaw doctor 超时，跳过配置检查")
+        return False, "", output[:5000]
     error_keywords = [
         "Config invalid", "Unrecognized key", "Problem:",
         "ValidationError", "invalid configuration", "parse error",
@@ -353,7 +436,7 @@ echo ========================================
 echo 正在启动 Claude Code 进行自动修复...
 echo ========================================
 set ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
-set ANTHROPIC_AUTH_TOKEN=YOUR_CLAUDE_KEY
+set ANTHROPIC_AUTH_TOKEN=YOUR_MINIMAX_API_KEY
 cd /d F:\Scripts\clawdbot-monitor
 claude --dangerously-skip-permissions
 '''
@@ -382,10 +465,16 @@ def cleanup_old_processes():
     try:
         cmd = "export PATH=/home/clawuser/.npm-global/bin:$PATH && openclaw gateway stop"
         run_wsl_command(cmd, 10)
-        subprocess.run(["wsl", "systemctl", "--user", "stop", "openclaw-gateway.service"], capture_output=True)
-        time.sleep(2)
-        subprocess.run(["wsl", "pkill", "-9", "-f", "openclaw"], capture_output=True)
-        subprocess.run(["wsl", "pkill", "-9", "-f", "clawdbot"], capture_output=True)
+        if IN_WSL:
+            subprocess.run(["systemctl", "--user", "stop", "openclaw-gateway.service"], capture_output=True)
+            time.sleep(2)
+            subprocess.run(["pkill", "-9", "-f", "openclaw"], capture_output=True)
+            subprocess.run(["pkill", "-9", "-f", "clawdbot"], capture_output=True)
+        else:
+            subprocess.run(["wsl", "-u", "clawuser", "systemctl", "--user", "stop", "openclaw-gateway.service"], capture_output=True)
+            time.sleep(2)
+            subprocess.run(["wsl", "-u", "clawuser", "pkill", "-9", "-f", "openclaw"], capture_output=True)
+            subprocess.run(["wsl", "-u", "clawuser", "pkill", "-9", "-f", "clawdbot"], capture_output=True)
         log("INFO", "已清理旧进程")
     except Exception as e:
         log("WARN", f"清理进程失败: {e}")
@@ -423,38 +512,67 @@ def start_gateway() -> bool:
     telegram_token = CONFIG["telegram_token"]
     gateway_port = CONFIG["gateway_port"]
     
-    cmd_str = (
-        f"export PATH=/home/clawuser/.npm-global/bin:$PATH && "
-        f"export no_proxy='127.0.0.1,localhost,::1,feishu.cn,feishu.com,open.feishu.cn,192.168.0.0/16' && "
-        f"export http_proxy='http://{proxy_host}:{proxy_port}' && "
-        f"export https_proxy='http://{proxy_host}:{proxy_port}' && "
-        f"export TELEGRAM_BOT_TOKEN='{telegram_token}' && "
-        f"npx openclaw gateway run --port {gateway_port} --force --verbose"
+    gw_log_wsl = "/home/clawuser/.clawdbot/gateway.log"
+    # 启动前截断日志，只保留最近 2000 行，避免无限增长
+    run_wsl_command(
+        f"if [ -f {gw_log_wsl} ]; then tail -n 2000 {gw_log_wsl} > {gw_log_wsl}.tmp && mv {gw_log_wsl}.tmp {gw_log_wsl}; fi",
+        10
     )
-    
+    cmd_str = (
+        f"mkdir -p /home/clawuser/.clawdbot && "
+        f"export PATH=/home/clawuser/.npm-global/bin:$PATH && "
+        f"unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && "
+        f"export NO_PROXY=open.feishu.cn,api.telegram.org && "
+        f"export NODE_OPTIONS=\"--max-old-space-size=4096\" && "
+        f"openclaw gateway run --port {gateway_port} --force --verbose"
+        f" 2>&1 | tee -a {gw_log_wsl}"
+    )
+
     try:
-        subprocess.Popen(["wsl", "-e", "bash", "-c", cmd_str])
-        log("INFO", f"已启动 Gateway (代理: http://{proxy_host}:{proxy_port})")
+        if IN_WSL:
+            subprocess.Popen(["bash", "-c", cmd_str])
+        else:
+            subprocess.Popen(["wsl", "-u", "clawuser", "-e", "bash", "-c", cmd_str])
+        log("INFO", f"已启动 Gateway，WSL日志: {gw_log_wsl}")
     except Exception as e:
         log("ERROR", f"启动失败: {e}")
         return False
     
     log("INFO", "等待 Gateway 启动...")
-    time.sleep(15)
     
-    if is_gateway_running():
-        log("INFO", "Gateway 启动成功")
-        send_telegram("✅ Gateway 已成功启动")
-        for port in [CONFIG["chrome_debug_port"], CONFIG["chrome_cron_port"]]:
-            if not is_chrome_debugging_running(port):
-                log("INFO", f"Gateway 启动成功，同步启动调试 Chrome ({port})...")
-                start_chrome_debugging(port)
-            else:
-                log("INFO", f"调试 Chrome ({port}) 已在运行，跳过")
-        return True
-    else:
-        log("ERROR", "Gateway 启动失败 - 健康检查未通过")
-        return False
+    # 分阶段等待并轮询健康状态
+    for wait_round in range(13):  # 13轮 x 5秒 = 最多65秒（覆盖 Gateway 60s startup-grace）
+        time.sleep(5)
+        if is_gateway_running():
+            log("INFO", f"Gateway 启动成功 (等待了 {(wait_round+1)*5} 秒)")
+            send_telegram("✅ Gateway 已成功启动")
+            
+            chrome_results = []
+            for port in [CONFIG["chrome_debug_port"], CONFIG["chrome_cron_port"]]:
+                if not is_chrome_debugging_running(port):
+                    log("INFO", f"Gateway 启动成功，同步启动调试 Chrome ({port})...")
+                    success = start_chrome_debugging(port, notify=False)
+                    chrome_results.append((port, success))
+                else:
+                    log("INFO", f"调试 Chrome ({port}) 已在运行，跳过")
+                    chrome_results.append((port, True))
+            
+            # 合并 Chrome 启动通知
+            success_ports = [f"{port}" for port, ok in chrome_results if ok]
+            failed_ports = [f"{port}" for port, ok in chrome_results if not ok]
+            
+            if success_ports:
+                ports_str = "、".join(success_ports)
+                send_telegram(f"✅ 调试 Chrome ({ports_str}) 已启动，并已加载 Relay 扩展")
+            if failed_ports:
+                ports_str = "、".join(failed_ports)
+                send_telegram(f"❌ 调试 Chrome ({ports_str}) 启动失败")
+            
+            return True
+        log("INFO", f"Gateway 尚未就绪，继续等待... ({(wait_round+1)*5}秒)")
+    
+    log("ERROR", "Gateway 启动失败 - 健康检查未通过")
+    return False
 
 def reconnect() -> bool:
     for attempt in range(1, CONFIG["max_retries"] + 1):
