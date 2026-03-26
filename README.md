@@ -6,6 +6,8 @@
 ![Platform-Windows | WSL](https://img.shields.io/badge/Platform-Windows%20%7C%20WSL-green)
 ![License-MIT](https://img.shields.io/badge/License-MIT-yellow)
 
+<img width="1920" height="1128" alt="image" src="https://github.com/user-attachments/assets/fb2727a9-d8a3-4300-8837-932db988c2ac" />
+
 ---
 
 ## ✨ 功能总览
